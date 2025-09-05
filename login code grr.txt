@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageFont, ImageTk
-import random, string, pyttsx3
+import random, string, pyttsx3, re
 
 
 def make_captcha_text(length=6):
@@ -61,6 +61,18 @@ class AuthApp(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Audio", command=self.audio_reg_captcha).pack(side="left", padx=5)
 
         ctk.CTkButton(inner, text="Register", command=self.register).pack(pady=15)
+
+        # NEW: Switch to login if already have an account
+        switch_btn = ctk.CTkButton(
+            inner,
+            text="Already have an account? Login here",
+            fg_color="transparent",
+            text_color="blue",
+            hover_color="lightgrey",
+            command=self.show_login
+        )
+        switch_btn.pack(pady=5)
+
         self.refresh_reg_captcha()
 
     def build_login_page(self):
@@ -84,6 +96,7 @@ class AuthApp(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Audio", command=self.audio_login_captcha).pack(side="left", padx=5)
 
         ctk.CTkButton(inner, text="Login", command=self.login).pack(pady=15)
+
         self.refresh_login_captcha()
 
     def register(self):
@@ -95,16 +108,36 @@ class AuthApp(ctk.CTk):
         if not user or not email or not pw or not cap_in:
             messagebox.showerror("Error", "Fill in all fields.")
             return
+
+        # Email Validation
+        email_pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+        if not re.match(email_pattern, email):
+            messagebox.showerror("Error", "Enter a valid email address.")
+            return
+
+        # Password Validation
+        pw_pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+        if not re.match(pw_pattern, pw):
+            messagebox.showerror(
+                "Error",
+                "Password must be at least 8 characters and include:\n"
+                "- Uppercase letter\n- Lowercase letter\n- Number\n- Special character"
+            )
+            return
+
         if cap_in != self.reg_captcha_text:
             messagebox.showerror("Captcha Error", "Captcha does not match.")
             self.refresh_reg_captcha()
             return
+
         if user in self.users:
             messagebox.showerror("Error", "User already exists.")
             return
 
         self.users[user] = {"email": email, "password": pw}
         messagebox.showinfo("Success", "Account created! Please login.")
+
+        # clear fields
         self.reg_username.delete(0, "end")
         self.reg_email.delete(0, "end")
         self.reg_password.delete(0, "end")
