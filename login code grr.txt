@@ -1,0 +1,241 @@
+import customtkinter as ctk
+from tkinter import messagebox
+from PIL import Image, ImageDraw, ImageFont, ImageTk
+import random, string, io
+import pyttsx3
+
+#maaking a simple captcha image
+def make_captcha_text(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+def make_captcha_image(text: str) -> ImageTk.PhotoImage:
+    img = Image.new("RGB", (180, 50), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 28)
+    except:
+        font = ImageFont.load_default()
+    
+    draw.text((20, 10), text, font=font, fill=(0, 0, 0))
+    
+    for _ in range(5):
+        x1, y1 = random.randint(0, 180), random.randint(0, 50)
+        x2, y2 = random.randint(0, 180), random.randint(0, 50)
+        draw.line((x1, y1, x2, y2), fill=(180, 180, 180), width=1)
+    b = io.BytesIO()
+    img.save(b, format="PNG")
+    b.seek(0)
+    return ImageTk.PhotoImage(Image.open(b))
+
+
+class AuthApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("Auth (Register first) — Fullscreen, Centered, Captcha")
+        
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
+
+        self.users = {}
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        self.container = ctk.CTkFrame(self)
+        self.container.grid(row=0, column=0, sticky="nsew")
+
+        #centering the card
+        for i in range(3):
+            self.container.grid_columnconfigure(i, weight=1)
+            self.container.grid_rowconfigure(i, weight=1)
+
+        # holding the active pagee
+        self.card = ctk.CTkFrame(self.container, corner_radius=20)
+        self.card.grid(row=1, column=1, sticky="nsew", padx=32, pady=32)
+
+        self.card.grid_columnconfigure(0, weight=1)
+        self.card.grid_rowconfigure(1, weight=1)
+
+        self.header = ctk.CTkFrame(self.card, fg_color="transparent")
+        self.header.grid(row=0, column=0, sticky="ew", padx=24, pady=(24, 0))
+        self.header.grid_columnconfigure((0, 1, 2), weight=1)
+
+        self.title_label = ctk.CTkLabel(self.header, text="Register", font=("Arial", 28, "bold"))
+        self.title_label.grid(row=0, column=0, sticky="w")
+
+        self.to_register_btn = ctk.CTkButton(self.header, text="Go to Register", command=self.show_register, width=140)
+        self.to_register_btn.grid(row=0, column=1, sticky="e", padx=6)
+
+        self.to_login_btn = ctk.CTkButton(self.header, text="Go to Login", command=self.show_login, width=140)
+        self.to_login_btn.grid(row=0, column=2, sticky="e")
+
+        self.register_page = ctk.CTkFrame(self.card)
+        self.login_page = ctk.CTkFrame(self.card)
+
+        for page in (self.register_page, self.login_page):
+            page.grid(row=1, column=0, sticky="nsew", padx=24, pady=24)
+            page.grid_columnconfigure(0, weight=1)
+
+        self._build_register_ui(self.register_page)
+        self._build_login_ui(self.login_page)
+
+        # Start on Register page
+        self.show_register()
+
+    #Page
+    def _build_register_ui(self, parent):
+        inner = ctk.CTkFrame(parent, corner_radius=16)
+        inner.grid(row=0, column=0, sticky="n", pady=(16, 0))
+        form_width = 360
+
+        ctk.CTkLabel(inner, text="Create your account", font=("Arial", 20, "bold")).pack(pady=(18, 12))
+
+        self.reg_username = ctk.CTkEntry(inner, placeholder_text="Username", width=form_width)
+        self.reg_username.pack(pady=8)
+
+        self.reg_email = ctk.CTkEntry(inner, placeholder_text="Email", width=form_width)
+        self.reg_email.pack(pady=8)
+
+        self.reg_password = ctk.CTkEntry(inner, placeholder_text="Password", show="*", width=form_width)
+        self.reg_password.pack(pady=8)
+
+        #captcha-register page
+        self.reg_captcha_label = ctk.CTkLabel(inner, text="")
+        self.reg_captcha_label.pack(pady=(12, 6))
+
+        captcha_row = ctk.CTkFrame(inner, fg_color="transparent")
+        captcha_row.pack()
+        self.reg_captcha_entry = ctk.CTkEntry(captcha_row, placeholder_text="Enter Captcha", width=form_width - 170)
+        self.reg_captcha_entry.grid(row=0, column=0, padx=(0, 6))
+        ctk.CTkButton(captcha_row, text="Refresh", width=80,
+                      command=lambda: self.refresh_captcha("register")).grid(row=0, column=1)
+        ctk.CTkButton(captcha_row, text="Audio", width=80,
+                      command=lambda: self.play_captcha_audio("register")).grid(row=0, column=2, padx=(6, 0))
+
+        ctk.CTkButton(inner, text="Register", width=form_width, command=self.register_user).pack(pady=(14, 8))
+
+        self.refresh_captcha("register")
+
+    def _build_login_ui(self, parent):
+        inner = ctk.CTkFrame(parent, corner_radius=16)
+        inner.grid(row=0, column=0, sticky="n", pady=(16, 0))
+        form_width = 360
+
+        ctk.CTkLabel(inner, text="Welcome back", font=("Arial", 20, "bold")).pack(pady=(18, 12))
+
+        self.login_username = ctk.CTkEntry(inner, placeholder_text="Username", width=form_width)
+        self.login_username.pack(pady=8)
+
+        self.login_password = ctk.CTkEntry(inner, placeholder_text="Password", show="*", width=form_width)
+        self.login_password.pack(pady=8)
+
+        #captcha-login
+        self.login_captcha_label = ctk.CTkLabel(inner, text="")
+        self.login_captcha_label.pack(pady=(12, 6))
+
+        captcha_row = ctk.CTkFrame(inner, fg_color="transparent")
+        captcha_row.pack()
+        self.login_captcha_entry = ctk.CTkEntry(captcha_row, placeholder_text="Enter Captcha", width=form_width - 170)
+        self.login_captcha_entry.grid(row=0, column=0, padx=(0, 6))
+        ctk.CTkButton(captcha_row, text="Refresh", width=80,
+                      command=lambda: self.refresh_captcha("login")).grid(row=0, column=1)
+        ctk.CTkButton(captcha_row, text="Audio", width=80,
+                      command=lambda: self.play_captcha_audio("login")).grid(row=0, column=2, padx=(6, 0))
+
+        ctk.CTkButton(inner, text="Login", width=form_width, command=self.login_user).pack(pady=(14, 8))
+
+        self.refresh_captcha("login")
+
+    #redirecting
+    def show_register(self):
+        self.title_label.configure(text="Register")
+        self.register_page.tkraise()
+        #refresh captcha
+        self.refresh_captcha("register")
+        self.reg_captcha_entry.delete(0, "end")
+
+    def show_login(self):
+        self.title_label.configure(text="Login")
+        self.login_page.tkraise()
+        #refresh 
+        self.refresh_captcha("login")
+        self.login_captcha_entry.delete(0, "end")
+
+    #audio captcha
+    def refresh_captcha(self, target: str):
+        if target == "login":
+            self.login_captcha_text = make_captcha_text()
+            self.login_captcha_img = make_captcha_image(self.login_captcha_text)
+            self.login_captcha_label.configure(image=self.login_captcha_img, text="")
+        else:
+            self.reg_captcha_text = make_captcha_text()
+            self.reg_captcha_img = make_captcha_image(self.reg_captcha_text)
+            self.reg_captcha_label.configure(image=self.reg_captcha_img, text="")
+
+    def play_captcha_audio(self, target: str):
+        engine = pyttsx3.init()
+        text = self.login_captcha_text if target == "login" else self.reg_captcha_text
+        engine.say("The captcha is " + ", ".join(list(text)))
+        engine.runAndWait()
+
+    # Auth logic
+    def register_user(self):
+        username = self.reg_username.get().strip()
+        email = self.reg_email.get().strip()
+        password = self.reg_password.get().strip()
+        cap_in = self.reg_captcha_entry.get().strip()
+        if not (username and email and password):
+            messagebox.showerror("Register Failed", "Please fill all fields.")
+            return
+        if cap_in != getattr(self, "reg_captcha_text", ""):
+            messagebox.showerror("Captcha Error", "Captcha does not match.")
+            self.refresh_captcha("register")
+            self.reg_captcha_entry.delete(0, "end")
+            return
+        if username in self.users:
+            messagebox.showerror("Register Failed", "Username already exists. Choose another.")
+            self.refresh_captcha("register")
+            self.reg_captcha_entry.delete(0, "end")
+            return
+        # test user
+        self.users[username] = {"email": email, "password": password}
+        messagebox.showinfo("Success", f"Account created for {username}!")
+
+        #clear registration inputs-TO REMOVE!!
+        self.reg_username.delete(0, "end")
+        self.reg_email.delete(0, "end")
+        self.reg_password.delete(0, "end")
+        self.reg_captcha_entry.delete(0, "end")
+        self.refresh_captcha("register")
+
+        # Redirect to LOGIN
+        self.show_login()
+
+    def login_user(self):
+        username = self.login_username.get().strip()
+        password = self.login_password.get().strip()
+        cap_in = self.login_captcha_entry.get().strip()
+
+        if cap_in != getattr(self, "login_captcha_text", ""):
+            messagebox.showerror("Captcha Error", "Captcha does not match.")
+            self.refresh_captcha("login")
+            self.login_captcha_entry.delete(0, "end")
+            return
+
+        user = self.users.get(username)
+        if not user or user["password"] != password:
+            messagebox.showerror("Login Failed", "Account does not exist or password is wrong. Please register.")
+            #redirect to registration
+            self.show_register()
+            return
+
+        messagebox.showinfo("Login Success", f"Welcome {username}!")
+
+        #clear login-TO REMOVE!!
+        self.login_username.delete(0, "end")
+        self.login_password.delete(0, "end")
+        self.login_captcha_entry.delete(0, "end")
+        self.refresh_captcha("login")
+
+if __name__ == "__main__":
+    app = AuthApp()
+    app.mainloop()
