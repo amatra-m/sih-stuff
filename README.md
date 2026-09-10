@@ -13,4 +13,4 @@ customtkinter-modern UI/better than tkinter..
 pillow-to generate captcha images
 pyttsx3-to speak captcha text
 
-no database made yet to save id's rather it's saved in a dictionary
+no database made yet to save id's rather it's saved in a dictionary as of now
